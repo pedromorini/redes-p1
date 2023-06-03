@@ -14,9 +14,64 @@ def sair(conexao):
 
 
 def dados_recebidos(conexao, dados):
+
+    global dados_residuais
+    global usuarios
+    global canais
+
     if dados == b'':
         return sair(conexao)
-    print(conexao, dados)
+
+    if not conexao in dados_residuais:
+        dados_residuais[conexao] = b''
+    
+    mensagens = dados.split(b'\r\n')
+
+    if dados_residuais[conexao] != b'':
+        mensagens[0] = dados_residuais[conexao] + mensagens[0]
+        dados_residuais[conexao] = b''
+
+    if mensagens[-1] != b'':
+        dados_residuais[conexao] = dados_residuais[conexao] + mensagens[-1]
+        mensagens[-1] = b''
+
+    if dados_residuais[conexao].endswith(b'\r\n'):
+        mensagens.insert(0, dados_residuais[conexao])
+        dados_residuais[conexao] = b''
+
+    for mensagem in mensagens:
+        if not len(mensagem):
+            continue
+
+        msg = mensagem.split(b' ', 1)[1]
+
+        if mensagem.startswith(b'PING'):
+            conexao.enviar(b':server PONG server :' + msg + b'\r\n')
+
+        elif mensagem.startswith(b'NICK'):
+
+            if conexao in usuarios:
+                apelido_atual = usuarios[conexao]
+            else:
+                apelido_atual = b'*'
+
+            if not validar_nome(msg):
+                conexao.enviar(b':server 432 * ' + msg + b' :Erroneous nickname\r\n')
+            elif verifica_apelido(msg):
+              conexao.enviar(b':server 433 ' + apelido_atual + b' ' + msg + b' :Nickname is already in use\r\n')
+            else:
+                if not conexao in usuarios:
+                    conexao.enviar(b':server 001 ' + msg + b' :Welcome\r\n')
+                    conexao.enviar(b':server 422 ' + msg + b' :MOTD File is missing\r\n')
+                else:
+                    conexao.enviar(b':' + apelido_atual + b' NICK ' + msg + b'\r\n') 
+                usuarios[conexao] = msg
+                
+
+def verifica_apelido(msg):
+    for users in list(usuarios.values()):
+        if users.lower() == msg.lower():
+            return 1
 
 
 def conexao_aceita(conexao):
