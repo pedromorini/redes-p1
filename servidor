@@ -69,13 +69,44 @@ def dados_recebidos(conexao, dados):
                 else:
                     conexao.enviar(b':' + apelido_atual + b' NICK ' + msg + b'\r\n') 
                 usuarios[conexao] = msg
+
+        elif mensagem.startswith(b'PRIVMSG'):
+            
+            destino, conteudo = msg.split(b' :',1)
+
+            if verifica_apelido(destino):
+                conexoes = busca_conexao(destino)
+                for conex in conexoes:
+                    conex.enviar(b':' + usuarios[conexao] + b' PRIVMSG ' + destino + b' :' + conteudo + b'\r\n')
                 
+        elif mensagem.startswith(b'JOIN'):
+
+            if not msg.startswith(b'#') or not validar_nome(msg):
+                conexao.enviar(b':server 403 ' + msg + b' :No such channel\r\n')
+            else:
+
+                if not msg in canais:
+                    canais[msg] = usuarios[conexao]
+
+                canais[msg] = usuarios[conexao]
+
+                for usr_canal in canais:
+                    conex = busca_conexao(usr_canal)
+                    conex.enviar(b':' + usuarios[conexao] + b' JOIN ' + b':' + msg + b'\r\n')
+
+
+def busca_conexao(msg):
+    conexoes = []
+    for conex, usr in usuarios.items():
+        if usr.lower() == msg.lower():
+            conexoes.append(conex)
+    return conexoes
+    
 
 def verifica_apelido(msg):
     for users in list(usuarios.values()):
         if users.lower() == msg.lower():
             return 1
-
 
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
