@@ -73,26 +73,50 @@ def dados_recebidos(conexao, dados):
         elif mensagem.startswith(b'PRIVMSG'):
             
             destino, conteudo = msg.split(b' :',1)
+            conexoes = []
+            if destino.startswith(b'#'):
 
-            if verifica_apelido(destino):
-                conexoes = busca_conexao(destino)
-                for conex in conexoes:
-                    conex.enviar(b':' + usuarios[conexao] + b' PRIVMSG ' + destino + b' :' + conteudo + b'\r\n')
+                for canal, x in canais.items():
+                    if canal.lower() == destino.lower():
+                      if canal in canais:
+                          for usuario in canais[canal]:
+                              if not usuario == usuarios[conexao]:
+                                  conexoes.append(busca_conexao(usuario)[0])
+    
+            else:
+                if verifica_apelido(destino):
+                    conexoes = busca_conexao(destino)
+
+            for conex in conexoes:
+                conex.enviar(b':' + usuarios[conexao] + b' PRIVMSG ' + destino + b' :' + conteudo + b'\r\n')
                 
         elif mensagem.startswith(b'JOIN'):
-
-            if not msg.startswith(b'#') or not validar_nome(msg):
-                conexao.enviar(b':server 403 ' + msg + b' :No such channel\r\n')
-            else:
+            
+            if msg.startswith(b'#') and validar_nome(msg[1:]):
 
                 if not msg in canais:
-                    canais[msg] = usuarios[conexao]
+                    canais[msg] = []
 
-                canais[msg] = usuarios[conexao]
+                canais[msg].append(usuarios[conexao])
+                conexao.enviar(b':' + usuarios[conexao] + b' JOIN :' + msg + b'\r\n')
+            else:
+                conexao.enviar(b':server 403 ' + msg + b':No such channel\r\n')
 
-                for usr_canal in canais:
-                    conex = busca_conexao(usr_canal)
-                    conex.enviar(b':' + usuarios[conexao] + b' JOIN ' + b':' + msg + b'\r\n')
+        elif mensagem.startswith(b'PART'):
+
+            canal = msg.split(b' ',1)[0]
+
+            if canal.startswith(b'#') and validar_nome(canal[1:]):      
+                
+                if canal in canais or usuarios[conexao] in canais[canal]:
+                    for user in canais[canal]:
+                        conex = busca_conexao(user)[0]
+                        conex.enviar(b':' + usuarios[conexao] + b' PART ' + canal + b'\r\n')
+
+                    canais[canal].remove(usuarios[conexao])
+
+            else:
+                conexao.enviar(b':server 403 ' + msg + b':No such channel\r\n')
 
 
 def busca_conexao(msg):
@@ -101,11 +125,10 @@ def busca_conexao(msg):
         if usr.lower() == msg.lower():
             conexoes.append(conex)
     return conexoes
-    
 
 def verifica_apelido(msg):
-    for users in list(usuarios.values()):
-        if users.lower() == msg.lower():
+    for user in list(usuarios.values()):
+        if user.lower() == msg.lower():
             return 1
 
 def conexao_aceita(conexao):
