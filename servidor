@@ -13,6 +13,26 @@ def validar_nome(nome):
 
 def sair(conexao):
     print(conexao, 'conexão fechada')
+
+    if conexao in usuarios:
+
+        lista_canais = []
+
+        for canal in canais:
+            if usuarios[conexao] in canais[canal]:
+                lista_canais.append(canal)
+
+        for canal in lista_canais:
+            for user in canais[canal]:
+                if user != usuarios[conexao]:
+                    conex = busca_conexao(user)[0]
+                    conex.enviar(b':' + usuarios[conexao] + b' QUIT :Connection closed\r\n')
+
+            canais[canal].remove(usuarios[conexao])
+            canais[canal].sort()
+
+        del usuarios[conexao]
+
     conexao.fechar()
 
 
@@ -98,7 +118,29 @@ def dados_recebidos(conexao, dados):
                     canais[msg] = []
 
                 canais[msg].append(usuarios[conexao])
-                conexao.enviar(b':' + usuarios[conexao] + b' JOIN :' + msg + b'\r\n')
+                canais[msg].sort()
+
+                for user in canais[msg]:
+                    conex = busca_conexao(user)[0]
+                    conex.enviar(b':' + usuarios[conexao] + b' JOIN :' + msg + b'\r\n')
+
+                tam_max = 512 - len(b':server 353 ' + usuarios[conexao] + b' = ' + msg + b' :\r\n')
+        
+                lista_membros = [b'']
+        
+                for user in canais[msg]:
+                    lista = (lista_membros[-1] + b' ' + user).strip()
+                    if len(lista) < tam_max:
+                        lista_membros[-1] = lista
+                    else:
+                        lista_membros.append(user)
+        
+                for membros in lista_membros:
+                    response = b':server 353 %s = %s :%s\r\n' % (usuarios[conexao], msg, membros)
+                    conexao.enviar(response)
+
+                conexao.enviar(b':server 366 ' + usuarios[conexao] + b' ' + msg + b' :End of /NAMES list.\r\n')
+
             else:
                 conexao.enviar(b':server 403 ' + msg + b':No such channel\r\n')
 
@@ -114,7 +156,7 @@ def dados_recebidos(conexao, dados):
                         conex.enviar(b':' + usuarios[conexao] + b' PART ' + canal + b'\r\n')
 
                     canais[canal].remove(usuarios[conexao])
-
+                    canais[canal].sort()
             else:
                 conexao.enviar(b':server 403 ' + msg + b':No such channel\r\n')
 
